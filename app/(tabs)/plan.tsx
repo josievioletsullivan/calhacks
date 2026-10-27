@@ -18,7 +18,7 @@ import { getStation, stations } from '@/lib/gtfs/data';
 import { formatPrice, quoteFare } from '@/lib/gtfs/fares';
 import { planTrips, type TripOption } from '@/lib/gtfs/planner';
 import type { Station } from '@/lib/gtfs/types';
-import { formatClock, formatCountdown, formatDuration } from '@/lib/time';
+import { formatClock, formatDuration } from '@/lib/time';
 
 type Mode = 'depart' | 'arrive';
 
@@ -51,6 +51,11 @@ export default function PlanScreen() {
   }, [origin, destination, targetTime, mode, updates.data]);
 
   const fare = origin && destination ? quoteFare(origin, destination) : null;
+
+  const fastest = useMemo(() => {
+    const upcoming = options.filter((o) => !o.cancelled && o.estimatedDeparture.getTime() >= now.getTime());
+    return upcoming.length ? upcoming.reduce((a, b) => (tripMinutes(b) < tripMinutes(a) ? b : a)) : null;
+  }, [options, now]);
 
   const swap = () => {
     setOrigin(destination);
@@ -89,7 +94,9 @@ export default function PlanScreen() {
             }
           />
         }
-        renderItem={({ item }) => <OptionRow option={item} now={now} fare={fare?.price ?? null} />}
+        renderItem={({ item }) => (
+          <OptionRow option={item} now={now} fare={fare?.price ?? null} fastest={item === fastest} mode={mode} />
+        )}
       />
     </View>
   );
@@ -112,13 +119,40 @@ function withEstimates(option: TripOption, predictions: TripPredictions | null):
   };
 }
 
-function OptionRow({ option, now, fare }: { option: EstimatedOption; now: Date; fare: number | null }) {
+function tripMinutes(o: EstimatedOption): number {
+  return Math.round((o.estimatedArrival.getTime() - o.estimatedDeparture.getTime()) / 60_000);
+}
+
+function OptionRow({
+  option,
+  now,
+  fare,
+  fastest,
+  mode,
+}: {
+  option: EstimatedOption;
+  now: Date;
+  fare: number | null;
+  fastest: boolean;
+  mode: Mode;
+}) {
   const border = useThemeColor({}, 'border');
+  const surface = useThemeColor({}, 'surface');
   const muted = useThemeColor({}, 'muted');
   const danger = useThemeColor({}, 'danger');
+  const success = useThemeColor({}, 'success');
   const departed = option.estimatedDeparture.getTime() < now.getTime();
+  const minutesToLeave = Math.round((option.estimatedDeparture.getTime() - now.getTime()) / 60_000);
   const changed = Math.abs(option.estimatedDeparture.getTime() - option.scheduledDeparture.getTime()) >= 60_000;
-  const durationMin = Math.round((option.estimatedArrival.getTime() - option.estimatedDeparture.getTime()) / 60_000);
+
+  // "Leave now" / "Leave in 12 min" / "Leave at 6:45 PM" — same ladder Maps uses.
+  const leaveLabel = departed
+    ? 'Departed'
+    : minutesToLeave <= 0
+      ? 'Leave now'
+      : minutesToLeave < 60
+        ? `Leave in ${minutesToLeave} min`
+        : `Leave at ${formatClock(option.estimatedDeparture)}`;
 
   return (
     <Pressable
@@ -133,14 +167,31 @@ function OptionRow({ option, now, fare }: { option: EstimatedOption; now: Date; 
           },
         })
       }
-      style={[styles.card, { borderColor: border, opacity: departed ? 0.5 : 1 }]}>
-      <View style={styles.cardHeader}>
-        <RouteBadge route={option.route} compact />
-        <Text style={{ color: muted, fontSize: 12 }}>#{option.trip.shortName}</Text>
-        <Text style={{ color: muted, fontSize: 12 }}>
-          {option.stopsBetween === 0 ? 'non-stop' : `${option.stopsBetween} stop${option.stopsBetween === 1 ? '' : 's'}`}
+      style={[styles.card, { borderColor: border, backgroundColor: surface, opacity: departed ? 0.5 : 1 }]}>
+      {/* Row 1: duration and arrival — the two numbers a rider actually decides on. */}
+      <View style={[styles.cardRow, { backgroundColor: 'transparent' }]}>
+        <View style={[styles.cardRow, { gap: 8, backgroundColor: 'transparent' }]}>
+          <Text style={styles.duration}>{formatDuration(tripMinutes(option))}</Text>
+          {fastest ? (
+            <Text style={[styles.pill, { color: success, borderColor: success }]}>Fastest</Text>
+          ) : null}
+        </View>
+        <Text style={styles.arrive}>
+          {mode === 'arrive' ? 'Arrives ' : 'Arrive '}
+          {formatClock(option.estimatedArrival)}
         </Text>
-        <View style={{ flex: 1 }} />
+      </View>
+
+      {/* Row 2: departure → arrival with the delay called out. */}
+      <View style={[styles.cardRow, { justifyContent: 'flex-start', gap: 8, backgroundColor: 'transparent' }]}>
+        <Text style={[styles.times, { color: muted }]}>
+          {formatClock(option.estimatedDeparture)} – {formatClock(option.estimatedArrival)}
+        </Text>
+        {changed ? (
+          <Text style={[styles.strike, { color: muted }]}>
+            {formatClock(option.scheduledDeparture)} – {formatClock(option.scheduledArrival)}
+          </Text>
+        ) : null}
         {option.cancelled ? (
           <Text style={{ color: danger, fontWeight: '700', fontSize: 12 }}>CANCELLED</Text>
         ) : (
@@ -148,30 +199,17 @@ function OptionRow({ option, now, fare }: { option: EstimatedOption; now: Date; 
         )}
       </View>
 
-      <View style={styles.timesRow}>
-        <View>
-          <Text style={styles.bigTime}>{formatClock(option.estimatedDeparture)}</Text>
-          {changed ? (
-            <Text style={[styles.strike, { color: muted }]}>{formatClock(option.scheduledDeparture)}</Text>
-          ) : null}
+      {/* Row 3: when to leave, which train, and the fare. */}
+      <View style={[styles.cardRow, { backgroundColor: 'transparent' }]}>
+        <View style={[styles.cardRow, { justifyContent: 'flex-start', gap: 8, backgroundColor: 'transparent' }]}>
+          <Text style={[styles.leave, departed && { color: muted }]}>{leaveLabel}</Text>
+          <Text style={{ color: muted, fontSize: 13 }}>·</Text>
+          <RouteBadge route={option.route} compact />
+          <Text style={{ color: muted, fontSize: 12 }}>
+            #{option.trip.shortName} · {option.stopsBetween === 0 ? 'non-stop' : `${option.stopsBetween} stop${option.stopsBetween === 1 ? '' : 's'}`}
+          </Text>
         </View>
-        <View style={styles.durationWrap}>
-          <View style={[styles.durationLine, { backgroundColor: border }]} />
-          <Text style={{ color: muted, fontSize: 12 }}>{formatDuration(durationMin)}</Text>
-        </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={styles.bigTime}>{formatClock(option.estimatedArrival)}</Text>
-          {changed ? (
-            <Text style={[styles.strike, { color: muted }]}>{formatClock(option.scheduledArrival)}</Text>
-          ) : null}
-        </View>
-      </View>
-
-      <View style={styles.cardFooter}>
-        <Text style={{ color: muted, fontSize: 13 }}>
-          {departed ? 'Departed' : `Leaves in ${formatCountdown(option.estimatedDeparture, now)}`}
-        </Text>
-        {fare != null ? <Text style={{ fontWeight: '600', fontSize: 13 }}>{formatPrice(fare)}</Text> : null}
+        {fare != null ? <Text style={styles.fare}>{formatPrice(fare)}</Text> : null}
       </View>
     </Pressable>
   );
@@ -262,12 +300,13 @@ const styles = StyleSheet.create({
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 12, padding: 8 },
   stepBtn: { paddingHorizontal: 16, paddingVertical: 8 },
   stepBtnText: { fontSize: 16, fontWeight: '700' },
-  card: { marginHorizontal: 16, marginBottom: 12, borderWidth: 1, borderRadius: 14, padding: 14, gap: 10 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  timesRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  bigTime: { fontSize: 22, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  strike: { fontSize: 12, textDecorationLine: 'line-through' },
-  durationWrap: { flex: 1, alignItems: 'center', gap: 4 },
-  durationLine: { height: 2, alignSelf: 'stretch', borderRadius: 1 },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  card: { marginHorizontal: 16, marginBottom: 12, borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
+  cardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  duration: { fontSize: 24, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  arrive: { fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  times: { fontSize: 14, fontVariant: ['tabular-nums'] },
+  strike: { fontSize: 12, textDecorationLine: 'line-through', fontVariant: ['tabular-nums'] },
+  leave: { fontSize: 14, fontWeight: '600' },
+  fare: { fontSize: 14, fontWeight: '700' },
+  pill: { fontSize: 11, fontWeight: '700', borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
 });

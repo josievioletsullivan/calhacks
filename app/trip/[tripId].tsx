@@ -3,6 +3,7 @@
  * a bell on each stop to get an "upcoming stop" notification.
  */
 import { Stack, useLocalSearchParams } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet } from 'react-native';
 
@@ -143,7 +144,7 @@ export default function TripScreen() {
                   : 'No live data for this train yet — showing schedule.'}
             </Text>
             <Text style={{ color: muted, fontSize: 12, marginTop: 4 }}>
-              Tap the bell on a stop to be notified {DEFAULT_LEAD_MINUTES} minutes before arrival.
+              Tap the alert button on a stop to be notified {DEFAULT_LEAD_MINUTES} minutes before arrival.
             </Text>
           </View>
         }
@@ -177,8 +178,12 @@ export default function TripScreen() {
                   hitSlop={10}
                   accessibilityRole="button"
                   accessibilityLabel={armed ? `Cancel alert for ${item.stationName}` : `Alert me before ${item.stationName}`}
-                  style={[styles.bell, armed && { backgroundColor: tint }]}>
-                  <Text style={{ fontSize: 16 }}>{armed ? '🔔' : '🔕'}</Text>
+                  style={[styles.bell, { borderColor: armed ? tint : border, backgroundColor: armed ? tint : 'transparent' }]}>
+                  <SymbolView
+                    name={armed ? { ios: 'bell.fill', android: 'notifications_active', web: 'notifications_active' } : { ios: 'bell', android: 'notifications', web: 'notifications' }}
+                    tintColor={armed ? '#fff' : muted}
+                    size={18}
+                  />
                 </Pressable>
               ) : null}
             </View>
@@ -203,5 +208,5 @@ const styles = StyleSheet.create({
   timeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   time: { fontSize: 14, fontVariant: ['tabular-nums'] },
   strike: { textDecorationLine: 'line-through' },
-  bell: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  bell: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 });
