@@ -30,7 +30,7 @@
 | Trip planner                                | Plan tab                                                           |
 | GTFS static (stations, scheduled times)     | `scripts/build-gtfs.mjs` → `data/*.json`, read by `lib/gtfs/data.ts` |
 | GTFS realtime                               | `lib/api/tripUpdates.ts`, `lib/api/vehiclePositions.ts`, `lib/api/stopMonitoring.ts` |
-| My tickets                                  | Tickets tab (`app/(tabs)/tickets.tsx`, fares from `lib/gtfs/fares.ts`) |
+| My tickets                                  | Dropped; fares still shown on planner cards via `lib/gtfs/fares.ts`   |
 | Schedule                                    | Schedule tab                                                       |
 | Map                                         | Map tab (`app/(tabs)/map.tsx`, react-native-maps)                  |
 

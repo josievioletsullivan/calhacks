@@ -54,7 +54,6 @@ and GTFS-RT `TripId` are the same ids as `trips.txt`, which makes merging trivia
 
 - **Schedule** (`app/(tabs)/index.tsx`): `scheduledDeparturesAt` + `useLiveDepartures`
 - **Plan** (`app/(tabs)/plan.tsx`): `planTrips` + `useTripUpdates` + `quoteFare`
-- **Tickets** (`app/(tabs)/tickets.tsx`): `quoteFare` + `lib/storage.ts`
 - **Map** (`app/(tabs)/map.tsx`): `lineShape`, `stations`, `useVehiclePositions`
 - **Trip** (`app/trip/[tripId].tsx`): `getTrip` + `useTripUpdates` + `lib/notifications.ts`
 

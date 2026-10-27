@@ -28,7 +28,6 @@ export default function TabLayout() {
       }}>
       <Tabs.Screen name="index" options={{ title: 'Schedule', tabBarIcon: tabIcon({ ios: 'clock', android: 'schedule', web: 'schedule' }) }} />
       <Tabs.Screen name="plan" options={{ title: 'Plan', tabBarIcon: tabIcon({ ios: 'point.topleft.down.to.point.bottomright.curvepath', android: 'route', web: 'route' }) }} />
-      <Tabs.Screen name="tickets" options={{ title: 'Tickets', tabBarIcon: tabIcon({ ios: 'ticket', android: 'confirmation_number', web: 'confirmation_number' }) }} />
       <Tabs.Screen name="map" options={{ title: 'Map', tabBarIcon: tabIcon({ ios: 'map', android: 'map', web: 'map' }) }} />
     </Tabs>
   );
